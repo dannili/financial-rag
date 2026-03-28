@@ -1,23 +1,26 @@
 import psycopg
 from pgvector.psycopg import register_vector_async
+from psycopg_pool import AsyncConnectionPool
 from app.config import settings
 from app.models import ChunkResult
 
-_pool: psycopg.AsyncConnectionPool | None = None
+_pool: AsyncConnectionPool | None = None
 
 async def init_vector_store():
     global _pool
-    _pool = await psycopg.AsyncConnectionPool.open(
+    _pool = AsyncConnectionPool(
         settings.database_url,
         min_size=2,
         max_size=10,
+        open=False,
     )
+    await _pool.open()
     async with _pool.connection() as conn:
         await register_vector_async(conn)
         await conn.execute(open("app/db/init.sql").read())
         await conn.commit()
 
-async def get_pool() -> psycopg.AsyncConnectionPool:
+async def get_pool() -> AsyncConnectionPool:
     if _pool is None:
         raise RuntimeError("Vector store not initialised")
     return _pool
@@ -31,17 +34,21 @@ async def store_chunks(
     pool = await get_pool()
     async with pool.connection() as conn:
         await register_vector_async(conn)
-        await conn.executemany(
-            """
-            INSERT INTO chunks (doc_id, source_name, source_type, section, text, embedding)
-            VALUES (%s, %s, %s, %s, %s, %s)
-            """,
-            [
-                (doc_id, source_name, source_type,
-                 c.get("section"), c["text"], c["embedding"])
-                for c in chunks
-            ],
-        )
+        for chunk in chunks:
+            await conn.execute(
+                """
+                INSERT INTO chunks (doc_id, source_name, source_type, section, text, embedding)
+                VALUES (%s, %s, %s, %s, %s, %s)
+                """,
+                (
+                    doc_id,
+                    source_name,
+                    source_type,
+                    chunk.get("section"),
+                    chunk["text"],
+                    chunk["embedding"],
+                ),
+            )
         await conn.commit()
 
 async def similarity_search(
