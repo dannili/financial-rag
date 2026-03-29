@@ -14,7 +14,9 @@ services:
       POSTGRES_PASSWORD: rag
       POSTGRES_DB: rag
     ports: ["5432:5432"]
-    volumes: ["pgdata:/var/lib/postgresql/data"]
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./app/db/init.sql:/docker-entrypoint-initdb.d/init.sql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U rag"]
       interval: 5s
