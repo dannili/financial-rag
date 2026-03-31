@@ -1,4 +1,4 @@
-# Financial RAG — SEC Filing Q&A
+# Financial RAG - SEC Filing Q&A
 
 A RAG-powered API and dashboard for querying SEC filings and financial stability reports in natural language.
 
@@ -13,9 +13,9 @@ Streamlit dashboard → FastAPI backend → pgvector (PostgreSQL)
 
 ## Stack
 
-- **Backend** — FastAPI, LangChain, OpenAI, pgvector
-- **Frontend** — Streamlit
-- **Infra** — Docker, Kubernetes, AWS EKS
+- **Backend** - FastAPI, LangChain, OpenAI, pgvector
+- **Frontend** - Streamlit
+- **Infra** - Docker, Kubernetes, AWS EKS
 
 ## Quick start
 ```bash
