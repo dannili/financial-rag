@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: financial-rag-config
+  namespace: financial-rag
+data:
+  DATABASE_URL: "postgresql+psycopg://rag:rag@postgres-service:5432/rag"
+  EMBEDDING_MODEL: "text-embedding-3-small"
+  CHAT_MODEL: "gpt-4o-mini"
+  CHUNK_SIZE: "512"
+  CHUNK_OVERLAP: "64"
+  RETRIEVAL_TOP_K: "5"
