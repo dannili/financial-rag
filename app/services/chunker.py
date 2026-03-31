@@ -9,4 +9,10 @@ splitter = RecursiveCharacterTextSplitter(
 
 def chunk_text(text: str, section: str | None = None) -> list[dict]:
     chunks = splitter.split_text(text)
-    return [{"text": c, "section": section} for c in chunks]
+    # filter out chunks that are too short to be meaningful
+    meaningful = [
+        {"text": c, "section": section}
+        for c in chunks
+        if len(c.strip()) > 100 and not c.strip() in (".", "•", "-", "")
+    ]
+    return meaningful

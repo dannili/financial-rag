@@ -61,24 +61,26 @@ async def similarity_search(
         await register_vector_async(conn)
 
         if doc_ids:
+            # with doc_ids filter
             rows = await conn.execute(
                 """
-                SELECT doc_id, source_name, section, text,
-                       1 - (embedding <=> %s::vector) AS score
+                SELECT DISTINCT ON (text) doc_id, source_name, section, text,
+                    1 - (embedding <=> %s::vector) AS score
                 FROM chunks
                 WHERE doc_id = ANY(%s)
-                ORDER BY embedding <=> %s::vector
+                ORDER BY text, embedding <=> %s::vector
                 LIMIT %s
                 """,
                 (query_embedding, doc_ids, query_embedding, top_k),
             )
         else:
+            # without filter
             rows = await conn.execute(
                 """
-                SELECT doc_id, source_name, section, text,
-                       1 - (embedding <=> %s::vector) AS score
+                SELECT DISTINCT ON (text) doc_id, source_name, section, text,
+                    1 - (embedding <=> %s::vector) AS score
                 FROM chunks
-                ORDER BY embedding <=> %s::vector
+                ORDER BY text, embedding <=> %s::vector
                 LIMIT %s
                 """,
                 (query_embedding, query_embedding, top_k),
@@ -92,5 +94,29 @@ async def similarity_search(
                 text=row[3],
                 score=round(row[4], 4),
             )
+            for row in await rows.fetchall()
+        ]
+    
+async def list_documents() -> list[dict]:
+    pool = await get_pool()
+    async with pool.connection() as conn:
+        rows = await conn.execute(
+            """
+            SELECT doc_id, source_name, source_type,
+                   COUNT(*) as chunk_count,
+                   MIN(created_at) as ingested_at
+            FROM chunks
+            GROUP BY doc_id, source_name, source_type
+            ORDER BY ingested_at DESC
+            """
+        )
+        return [
+            {
+                "doc_id": row[0],
+                "source_name": row[1],
+                "source_type": row[2],
+                "chunk_count": row[3],
+                "ingested_at": row[4].isoformat(),
+            }
             for row in await rows.fetchall()
         ]
