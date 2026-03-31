@@ -21,6 +21,14 @@ services:
       test: ["CMD-SHELL", "pg_isready -U rag"]
       interval: 5s
       retries: 5
+  streamlit:
+    build:
+      context: .
+      dockerfile: Dockerfile.streamlit
+    ports: ["8501:8501"]
+    env_file: .env
+    depends_on:
+      - api
 
 volumes:
   pgdata:
