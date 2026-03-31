@@ -9,6 +9,8 @@ Streamlit dashboard → FastAPI backend → pgvector (PostgreSQL)
                                       → SEC EDGAR API / PDF sources
 ```
 
+![Demo](docs/demo.gif)
+
 ## Stack
 
 - **Backend** — FastAPI, LangChain, OpenAI, pgvector
