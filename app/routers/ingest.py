@@ -2,7 +2,8 @@ import uuid
 import httpx
 from fastapi import APIRouter, HTTPException
 from bs4 import BeautifulSoup
-import fitz  # pymupdf
+import fitz
+from langchain_openai import data  # pymupdf
 
 from app.models import IngestSECRequest, IngestPDFRequest, IngestResponse
 from app.services.chunker import chunk_text
@@ -13,7 +14,7 @@ router = APIRouter()
 
 EDGAR_HEADERS = {"User-Agent": "financial-rag contact@example.com"}
 
-async def _fetch_sec_sections(cik: str, filing_type: str) -> list[dict]:
+async def _fetch_sec_sections(cik: str, filing_type: str) -> tuple[str, list[dict]]:
     """Fetch latest 10-K from EDGAR, extract Item 1A and Item 7 sections."""
     async with httpx.AsyncClient(headers=EDGAR_HEADERS) as client:
         # 1. get filing index
@@ -23,6 +24,8 @@ async def _fetch_sec_sections(cik: str, filing_type: str) -> list[dict]:
         )
         r.raise_for_status()
         data = r.json()
+        print("Company name from API:", data.get("name"))
+        company_name = data.get("name", cik)
 
         filings = data["filings"]["recent"]
         forms = filings["form"]
@@ -52,7 +55,15 @@ async def _fetch_sec_sections(cik: str, filing_type: str) -> list[dict]:
 
     # 2. parse sections from HTML
     soup = BeautifulSoup(html.text, "html.parser")
+    # remove tables, scripts, styles before extracting text
+    for tag in soup(["script", "style", "table"]):
+        tag.decompose()
+
     full_text = soup.get_text(separator="\n")
+    # collapse excessive whitespace
+    import re
+    full_text = re.sub(r'\n{3,}', '\n\n', full_text)
+    full_text = re.sub(r'[ \t]+', ' ', full_text)
     lines = full_text.splitlines()
 
     sections = {}
@@ -77,7 +88,7 @@ async def _fetch_sec_sections(cik: str, filing_type: str) -> list[dict]:
     if current_section and buffer:
         sections[current_section] = "\n".join(buffer)
 
-    return [{"text": text, "section": sec} for sec, text in sections.items()]
+    return company_name, [{"text": text, "section": sec} for sec, text in sections.items()]
 
 
 async def _fetch_pdf_sections(url: str) -> list[dict]:
@@ -98,7 +109,7 @@ async def _fetch_pdf_sections(url: str) -> list[dict]:
 @router.post("/sec", response_model=IngestResponse)
 async def ingest_sec(req: IngestSECRequest):
     doc_id = f"sec_{req.cik}_{req.filing_type.lower()}"
-    sections = await _fetch_sec_sections(req.cik, req.filing_type)
+    company_name, sections = await _fetch_sec_sections(req.cik, req.filing_type)
 
     all_chunks = []
     for s in sections:
@@ -112,7 +123,6 @@ async def ingest_sec(req: IngestSECRequest):
     for chunk, emb in zip(all_chunks, embeddings):
         chunk["embedding"] = emb
 
-    company_name = doc_id  # replaced by real name if you extend this
     await store_chunks(doc_id, company_name, "sec_filing", all_chunks)
 
     return IngestResponse(
